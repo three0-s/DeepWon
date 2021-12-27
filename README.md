@@ -13,7 +13,7 @@ Its directory structure is as follows.
     * preprocess
         * image.py
         * tabular_data.py
-    * schedulers
+    * schedules
         * schedulers.py
     * utils
         * utils.py
