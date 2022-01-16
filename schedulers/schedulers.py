@@ -1,6 +1,14 @@
-__doc__ = '''\
-This module contains various schedulers for optimizers
+__env__ = '''Envs]
+    Python 3.9.7 64-bit(conda 4.11.0)
+    macOS 12.1
 '''
+__version__ = '''Version]
+    version 0.01(beta)
+'''
+__doc__ = '''\
+This module contains various schedulers for optimizing.
+''' + __env__+__version__
+
 import tensorflow as tf
 from tensorflow import keras
 import numpy as np
