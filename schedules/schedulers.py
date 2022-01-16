@@ -1,4 +1,3 @@
-__version__ = '0.0.0'
 __doc__ = '''\
 This module contains various schedulers for optimizers
 '''
