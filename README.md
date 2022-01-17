@@ -33,7 +33,7 @@ Its directory structure is as follows.
         * utils.py
         __init__.py
 
-This package is also available on PiPy through following command.  
+This package is also available on PyPi through following command.  
 ```
    pip install DeepWon
 ```
