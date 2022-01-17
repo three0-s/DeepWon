@@ -34,7 +34,7 @@ Its directory structure is as follows.
         __init__.py
 
 This package is also available on PiPy through following command.  
-'''
+```
    pip install DeepWon
-'''
+```
 
