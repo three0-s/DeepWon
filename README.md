@@ -6,7 +6,7 @@ Its directory structure is as follows.
 * DeepWon  
     \__init__.py  
     
-    * callbacks  
+    * callbacks
         * callbacks.py  
         \__init__.py
 
