@@ -3,37 +3,25 @@ DeepWon] A custom ML packages based on Tensorflow 2.0
 
 This repo contains various Deep Learning architectures, optimizers, schedulers and etc.   
 Its directory structure is as follows.
-* DeepWon  
-    \__init__.py  
+* DeepWon   
     
     * callbacks
         * callbacks.py  
-        \__init__.py
-
     * layers
         * layers.py  
-        \__init__.py
-        
     * optimizers
-        * optimizers.py  
-        \__init__.py
-        
+        * optimizers.py 
     * preprocess
         * image.py(not yet)  
         * tabular_data.py(not yet)  
-        \__init__.py
-        
     * schedulers
         * schedulers.py  
-        \__init__.py
-        
     * models
         * models.py  
-        \__init__.py
-        
+    * losses
+        * gan_loss.py
     * utils
         * utils.py  
-        \__init__.py
 
 This package is also available on PyPi through following command.  
 ```

@@ -331,7 +331,6 @@ class CDownsample(layers.Layer):
         self.kernel_size = kernel_size
         self.stride = stride
         self.batch_norm = batch_norm
-        self.input_shape = None
 
     def build(self, input_shape):
         self.initializer = tf.random_normal_initializer(0., 0.02)
@@ -343,7 +342,7 @@ class CDownsample(layers.Layer):
         if self.batch_norm:
             self.downsample.add(tf.keras.layers.BatchNormalization())
         self.downsample.add(tf.keras.layers.LeakyReLU())
-        self.input_shape = input_shape
+
 
     def call(self, input, training):
         return self.downsample(input, training)
@@ -372,7 +371,6 @@ class CUpsample(layers.Layer):
         self.kernel_size = kernel_size
         self.stride = stride
         self.dropout = dropout
-        self.input_shape = None
 
     def build(self, input_shape):
         self.initializer = tf.random_normal_initializer(0., 0.02)
@@ -386,7 +384,6 @@ class CUpsample(layers.Layer):
         if self.dropout:
             self.upsample.add(tf.keras.layers.Dropout(0.5))
         self.upsample.add(tf.keras.layers.ReLU())
-        self.input_shape = input_shape
 
     def call(self, input, training):
         return self.upsample(input, training)
