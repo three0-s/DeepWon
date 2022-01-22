@@ -9,9 +9,11 @@ __doc__ = '''\
 This module contains various Deep Learning models.
 ''' + __env__+__version__
 
-from ..layers.layers import CPatches, CPatchEncoder, CRandomSampling, TransformerBlock, CMaskToken, CPosEncoder
+from ..layers.layers import CPatches, CPatchEncoder, CRandomSampling, TransformerBlock, CMaskToken, CPosEncoder, CDownsample, CUpsample
 from tensorflow.keras.layers import Input, Dense, Add, LayerNormalization, Reshape, Permute, GlobalAveragePooling1D
 from tensorflow.keras.models import Model
+import tensorflow as tf
+from ..losses.gan_loss import generator_loss, discriminator_loss
 
 # Masked Auto Encoder(MAE) model
 def mae_model(input_shape, img_h, img_w, patch_size=40, mask_ratio=0.75, d_model=32, d_decoder=32, dff=128, dff_decoder=128, num_heads=4, drop=0.1, N_e=3, N_d=1):
@@ -84,3 +86,132 @@ def mlp_mixer_model(sequence_len=14, C=6, d_model = 1024, N=13, Ds=1042, Dc=12):
 
     model = Model(inputs=input, outputs=out)
     return model
+
+# pix2pix generator model
+class P2PGenerator(Model):
+    def __init__(self, *args, **kwargs):
+        super(P2PGenerator, self).__init__(self, *args, **kwargs)
+        self.down_stacks = None
+        self.up_stack = None
+        self.initializer = None
+        self.last = None
+
+    def build(self, input_shape): 
+        self.initializer = tf.random_normal_initializer(0., 0.02)
+        self.down_stacks = [
+            CDownsample(64, 4, apply_batchnorm=False), # (bs, 128, 128, 64)
+            CDownsample(128, 4), # (bs, 64, 64, 128)
+            CDownsample(256, 4), # (bs, 32, 32, 256)
+            CDownsample(512, 4), # (bs, 16, 16, 512)
+            CDownsample(512, 4), # (bs, 8, 8, 512)
+            CDownsample(512, 4), # (bs, 4, 4, 512)
+            CDownsample(512, 4), # (bs, 2, 2, 512)
+            CDownsample(512, 4), # (bs, 1, 1, 512)
+        ]
+        self.up_stack = [
+            CUpsample(512, 4, apply_dropout=True), # (bs, 2, 2, 1024)
+            CUpsample(512, 4, apply_dropout=True), # (bs, 4, 4, 1024)
+            CUpsample(512, 4, apply_dropout=True), # (bs, 8, 8, 1024)
+            CUpsample(512, 4), # (bs, 16, 16, 1024)
+            CUpsample(256, 4), # (bs, 32, 32, 512)
+            CUpsample(128, 4), # (bs, 64, 64, 256)
+            CUpsample(64, 4), # (bs, 128, 128, 128)
+        ]
+        self.last = tf.keras.layers.Conv2DTranspose(3, 4,
+                                         strides=2,
+                                         padding='same',
+                                         kernel_initializer=self.initializer,
+                                         activation='tanh') # (bs, 256, 256, 3)
+
+    def call(self, input):
+        x = input
+        # Downsampling through the model
+        skips = []
+        for down in self.down_stack:
+            x = down(x)
+            skips.append(x)
+
+        skips = reversed(skips[:-1])
+        # Upsampling and establishing the skip connections
+        for up, skip in zip(self.up_stack, skips):
+            x = up(x)
+            x = tf.keras.layers.Concatenate()([x, skip])
+
+        x = self.last(x)
+        return x
+
+
+# pix2pix discriminator model
+class P2PDiscriminator(Model):
+    def __init__(self, *args, **kwargs):
+        super(P2PDiscriminator, self).__init__(self, *args, **kwargs)
+        self.down1 = None
+        self.down2 = None
+        self.down3 = None
+        self.zero_pad1 = None
+        self.conv = None
+        self.batchnorm1 = None
+        self.leaky_relu = None
+        self.zero_pad2 = None
+        self.last = None
+
+    def build(self, input_shape):
+        self.down1 = CDownsample(64, 4, False) # (bs, 128, 128, 64)
+        self.down2 = CDownsample(128, 4) # (bs, 64, 64, 128)
+        self.down3 = CDownsample(256, 4) # (bs, 32, 32, 256)
+
+        self.zero_pad1 = tf.keras.layers.ZeroPadding2D() # (bs, 34, 34, 256)
+        self.conv = tf.keras.layers.Conv2D(512, 4, strides=1,
+                                        kernel_initializer=self.initializer,
+                                        use_bias=False) # (bs, 31, 31, 512)
+
+        self.batchnorm1 = tf.keras.layers.BatchNormalization()
+        self.leaky_relu = tf.keras.layers.LeakyReLU()
+        self.zero_pad2 = tf.keras.layers.ZeroPadding2D() # (bs, 33, 33, 512)
+        self.last = tf.keras.layers.Conv2D(1, 4, strides=1,
+                                        kernel_initializer=self.initializer) # (bs, 30, 30, 1)
+    def call(self, inputs1, inputs2):
+        x = tf.keras.layers.concatenate([inputs1, inputs2])
+        x = self.down1(x)
+        x = self.down2(x)
+        x = self.down3(x)
+
+        x = self.zero_pad1()(x)
+        x = self.conv(x)
+        x = self.batchnorm1(x)
+        x = self.leaky_relu(x)
+        x = self.zero_pad2(x)
+        x = self.last(x)
+        return x
+
+class pix2pix(Model):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.generator = P2PGenerator()
+        self.discriminator = P2PDiscriminator()
+        self.generator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
+        self.discriminator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
+
+    def call(self, inputs):
+        return self.generator(inputs, training=True)
+    
+    def train_step(self, data):
+        inputs, targets = data
+        with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
+            gen_output = self.generator(inputs, training=True)
+
+            disc_real_output = self.discriminator([inputs, targets], training=True)
+            disc_generated_output = self.discriminator([inputs, gen_output], training=True)
+
+            gen_total_loss, gen_gan_loss, gen_l1_loss = generator_loss(disc_generated_output, gen_output, targets)
+            disc_loss = discriminator_loss(disc_real_output, disc_generated_output)
+
+        generator_gradients = gen_tape.gradient(gen_total_loss,
+                                                self.generator.trainable_variables)
+        discriminator_gradients = disc_tape.gradient(disc_loss,
+                                                    self.discriminator.trainable_variables)
+
+        self.generator_optimizer.apply_gradients(zip(generator_gradients,
+                                                self.generator.trainable_variables))
+        self.discriminator_optimizer.apply_gradients(zip(discriminator_gradients,
+                                                    self.discriminator.trainable_variables))

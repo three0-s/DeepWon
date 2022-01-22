@@ -319,3 +319,88 @@ class TransformerBlock(layers.Layer):
     @classmethod
     def from_config(cls, config):
         return cls(**config)
+
+
+# Downsample layer for UNet Encoder(pix2pix)
+class CDownsample(layers.Layer):
+    def __init__(self, filter_num, kernel_size, stride, batch_norm=True, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.initializer = None
+        self.downsample = None
+        self.filter_num = filter_num
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.batch_norm = batch_norm
+        self.input_shape = None
+
+    def build(self, input_shape):
+        self.initializer = tf.random_normal_initializer(0., 0.02)
+        self.downsample = tf.keras.Sequential()
+        self.downsample.add(
+            tf.keras.layers.Conv2D(self.filter_num, self.kernel_size, self.stride, padding='same',
+                        kernel_initializer=self.initializer, use_bias=False)
+        )
+        if self.batch_norm:
+            self.downsample.add(tf.keras.layers.BatchNormalization())
+        self.downsample.add(tf.keras.layers.LeakyReLU())
+        self.input_shape = input_shape
+
+    def call(self, input, training):
+        return self.downsample(input, training)
+    
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            'filter_num':self.filter_num,
+            'kernel_size':self.kernel_size,
+            'stride':self.stride,
+            'batch_norm':self.batch_norm,
+        })
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
+
+
+# Upsample layer for UNet Decoder(pix2pix)
+class CUpsample(layers.Layer):
+    def __init__(self, filter_num, kernel_size, stride, dropout=False, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.initializer = None
+        self.upsample = None
+        self.filter_num = filter_num
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.dropout = dropout
+        self.input_shape = None
+
+    def build(self, input_shape):
+        self.initializer = tf.random_normal_initializer(0., 0.02)
+        self.upsample = tf.keras.Sequential()
+        self.upsample.add(
+            tf.keras.layers.Conv2DTranspose(self.filter_num, self.kernel_size, self.stride, padding='same',
+                        kernel_initializer=self.initializer, use_bias=False)
+        )
+        self.upsample.add(tf.keras.layers.BatchNormalization())
+        
+        if self.dropout:
+            self.upsample.add(tf.keras.layers.Dropout(0.5))
+        self.upsample.add(tf.keras.layers.ReLU())
+        self.input_shape = input_shape
+
+    def call(self, input, training):
+        return self.upsample(input, training)
+    
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            'filter_num':self.filter_num,
+            'kernel_size':self.kernel_size,
+            'stride':self.stride,
+            'dropout':self.dropout,
+        })
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
+

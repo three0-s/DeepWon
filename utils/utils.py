@@ -8,6 +8,8 @@ __version__ = '''Version]
 __doc__ = '''\
 This module contains various utilities.
 '''+ __env__+__version__
+import tensorflow as tf
+
 
 # print tabular data
 def print_table(col_names, *cols, tab_width=50, just='right'):
@@ -53,6 +55,38 @@ def print_table(col_names, *cols, tab_width=50, just='right'):
         print(row_str)
     
     print('='*tab_width)
+
+# decode image file from path and resize
+def decode_img(img, IMG_HEIGHT, IMG_WIDTH):
+  img = tf.image.decode_jpeg(img, channels=3)
+  img = tf.image.resize(img, [IMG_HEIGHT, IMG_WIDTH])
+  img = tf.cast(img, tf.float32)
+  
+  return img
+
+
+def config_for_performance(ds, batchsize=512, cache=True):
+  if cache:
+    if isinstance(cache, str):
+        ds = ds.cache(cache)
+    else:
+        ds = ds.cache()
+  
+  AUTOTUNE = tf.data.experimental.AUTOTUNE
+  ds = ds.shuffle(buffer_size=1000)
+  ds = ds.repeat()
+  ds = ds.batch(batchsize)
+  ds = ds.prefetch(buffer_size=AUTOTUNE)
+  return ds
+
+
+def train_test_split_ds(ds, ratio=0.2):
+  val_size = int(len(ds) * ratio)
+  train_ds = ds.skip(val_size)
+  val_ds = ds.take(val_size)
+
+  return train_ds, val_ds
+
 
 
 # Get model size
